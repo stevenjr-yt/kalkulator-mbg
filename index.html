@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kalkulator MBG by SteVenJr</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar biar agak cyber/hacker vibes dikit */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4 font-sans">
+
+    <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-blue-400 mb-2">Kalkulator MBG 🍽️💸</h1>
+            <p class="text-gray-400 text-sm">Developed by <span class="font-bold text-blue-300">SteVenJr</span></p>
+            <p class="mt-3 text-xs text-gray-500 bg-gray-700 p-2 rounded-lg">
+                1 Hari MBG = Rp 1.200.000.000.000 (1,2 Triliun)
+            </p>
+        </div>
+
+        <div class="space-y-6">
+            <div class="flex flex-col gap-2">
+                <label class="text-sm text-gray-400 font-semibold">Dari Jumlah & Mata Uang</label>
+                <div class="flex gap-2">
+                    <input type="number" id="amount" value="1" min="0" class="w-2/3 bg-gray-700 text-white p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" placeholder="Masukkan angka...">
+                    <select id="fromCurrency" class="w-1/3 bg-gray-700 text-white p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer font-bold">
+                        <option value="MBG">MBG (Hari)</option>
+                        <option value="idr" selected>IDR</option>
+                        <option value="usd">USD</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex justify-center">
+                <button id="swapBtn" class="bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-full transition-colors shadow-lg shadow-blue-500/30">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <label class="text-sm text-gray-400 font-semibold">Menjadi</label>
+                <div class="flex gap-2">
+                    <input type="text" id="result" readonly class="w-2/3 bg-gray-600 text-green-400 p-3 rounded-lg outline-none font-mono font-bold cursor-not-allowed overflow-x-auto" placeholder="Hasil...">
+                    <select id="toCurrency" class="w-1/3 bg-gray-700 text-white p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer font-bold">
+                        <option value="MBG" selected>MBG (Hari)</option>
+                        <option value="idr">IDR</option>
+                        <option value="usd">USD</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 text-center">
+            <p id="funFact" class="text-sm text-yellow-400 italic min-h-[40px]"></p>
+        </div>
+    </div>
+
+    <script>
+        // Konstanta gila negara kita wkwkwk
+        const MBG_VALUE_IDR = 1200000000000; // Rp 1,2 Triliun
+        let exchangeRates = {};
+
+        const amountInput = document.getElementById('amount');
+        const fromCurrency = document.getElementById('fromCurrency');
+        const toCurrency = document.getElementById('toCurrency');
+        const resultInput = document.getElementById('result');
+        const swapBtn = document.getElementById('swapBtn');
+        const funFact = document.getElementById('funFact');
+
+        // Fetch kurs mata uang real-time (Base: IDR)
+        async function fetchRates() {
+            try {
+                // Pake API gratisan dari fawazahmed0, mantap buat simple project
+                const res = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/idr.json');
+                const data = await res.json();
+                exchangeRates = data.idr;
+                
+                // Masukin semua mata uang dunia ke dropdown
+                populateDropdowns();
+                calculate();
+            } catch (error) {
+                console.error("Gagal ngambil API Kurs, Bro!", error);
+                funFact.innerText = "Waduh API kurs error, pake kurs manual aja dulu ya!";
+                // Fallback kurs manual dikit
+                exchangeRates = { usd: 0.000063, eur: 0.000058, jpy: 0.0095, idr: 1 };
+                calculate();
+            }
+        }
+
+        function populateDropdowns() {
+            const commonCurrencies = ['usd', 'eur', 'jpy', 'sgd', 'myr', 'gbp', 'aud'];
+            
+            // Tambahin mata uang asing ke dropdown kalau belum ada
+            commonCurrencies.forEach(currency => {
+                if(!document.querySelector(`#fromCurrency option[value="${currency}"]`)) {
+                    fromCurrency.add(new Option(currency.toUpperCase(), currency));
+                    toCurrency.add(new Option(currency.toUpperCase(), currency));
+                }
+            });
+        }
+
+        function formatNumber(num) {
+            // Biar angkanya gampang dibaca, gak kepanjangan nolnya
+            if (num < 0.000001 && num > 0) return num.toExponential(4);
+            return num.toLocaleString('id-ID', { maximumFractionDigits: 6 });
+        }
+
+        function calculate() {
+            let amount = parseFloat(amountInput.value) || 0;
+            let from = fromCurrency.value;
+            let to = toCurrency.value;
+
+            // 1. Konversi dari mata uang asal ke Rupiah (IDR)
+            let valueInIDR = 0;
+            if (from === 'MBG') {
+                valueInIDR = amount * MBG_VALUE_IDR;
+            } else if (from === 'idr') {
+                valueInIDR = amount;
+            } else {
+                // Karena API ngasih 1 IDR = x Foreign Currency, 
+                // maka Foreign to IDR = Foreign / Kurs
+                valueInIDR = amount / exchangeRates[from];
+            }
+
+            // 2. Konversi dari Rupiah (IDR) ke mata uang tujuan
+            let finalResult = 0;
+            if (to === 'MBG') {
+                finalResult = valueInIDR / MBG_VALUE_IDR;
+            } else if (to === 'idr') {
+                finalResult = valueInIDR;
+            } else {
+                finalResult = valueInIDR * exchangeRates[to];
+            }
+
+            resultInput.value = formatNumber(finalResult);
+            generateFunFact(valueInIDR, from, to, amount);
+        }
+
+        function generateFunFact(idrValue, from, to, amount) {
+            if (amount === 0) {
+                funFact.innerText = "Isi angkanya dulu dong boss...";
+                return;
+            }
+
+            if (from === 'MBG' && to === 'idr') {
+                let m = (idrValue / 1000000000000).toFixed(1);
+                funFact.innerText = `Rp ${m} Triliun? Udah bisa beli ribuan mobil sport cash ini mah wkwkwk.`;
+            } else if (to === 'MBG') {
+                if (idrValue < 15000) {
+                    funFact.innerText = `Duit segini mah cuma cukup buat parkir indomaret, apalagi bayar program MBG harian.`;
+                } else if (idrValue < MBG_VALUE_IDR) {
+                    let percent = ((idrValue / MBG_VALUE_IDR) * 100).toFixed(6);
+                    funFact.innerText = `Duit lu cuma cukup nanggung ${percent}% dari anggaran 1 hari MBG nasional.`;
+                } else {
+                    let days = (idrValue / MBG_VALUE_IDR).toFixed(2);
+                    funFact.innerText = `Gila! Duit lu bisa nanggung makan bergizi gratis se-Indonesia selama ${days} hari!`;
+                }
+            } else {
+                funFact.innerText = "Terus pantau angkanya, jangan sampai pusing ngitung nol-nya wkwk.";
+            }
+        }
+
+        // Event Listeners
+        amountInput.addEventListener('input', calculate);
+        fromCurrency.addEventListener('change', calculate);
+        toCurrency.addEventListener('change', calculate);
+
+        swapBtn.addEventListener('click', () => {
+            let temp = fromCurrency.value;
+            fromCurrency.value = toCurrency.value;
+            toCurrency.value = temp;
+            calculate();
+        });
+
+        // Inisialisasi awal
+        fetchRates();
+    </script>
+</body>
+</html>
